@@ -1,0 +1,20 @@
+# Batch 2: detection models and evaluation settings
+models: [iforest, ocsvm, ae, rf]     # rf = supervised reference (closed-world upper bound), not an anomaly detector
+
+params:
+  iforest: {n_estimators: 200, max_samples: 1024}
+  ocsvm: {nu: 0.02, gamma: scale, max_train: 30000}
+  ae: {hidden: [64, 32, 16, 32, 64], max_iter: 200}      # dense autoencoder (scikit-learn MLP, CPU, no PyTorch needed)
+  rf: {n_estimators: 200, windows_per_label: 100}
+
+tuning:                               # optional: python -m src.models.train --tune
+  seed_index: 0                       # tune on the validation stream of seeds[0]; test data is never used
+  grids:
+    iforest: {n_estimators: [100, 300], max_samples: [256, 2048]}
+    ocsvm: {nu: [0.01, 0.05], gamma: [scale, 0.01]}
+    ae: {hidden: [[64, 32, 16, 32, 64], [128, 64, 32, 64, 128]]}
+
+evaluation:
+  threshold_quantile: 0.99            # alarm threshold = 99th percentile of BENIGN validation scores
+  figures_dir: report/figures
+  tables_dir: report/tables

@@ -1,0 +1,26 @@
+# Batch 7: scripted, fully deterministic demo scenario for the live presentation and the dashboard.
+# NOT real experimental data — those results live in report/tables/e3_*. This is a hand-crafted score
+# sequence chosen to walk through every mitigation-FSM state in one short, repeatable run.
+n_devices: 5
+windows_per_device: 200
+seconds_per_window: 60
+compromised_device_index: 4        # dev_demo_04 is the one with the scripted attack; the other 4 stay flat-benign
+levels: {warn: 1.0, rotate: 2.0, revoke: 3.0}   # illustrative thresholds, NOT the real calibrated ones
+policy:
+  hysteresis_n: 3
+  hysteresis_k: 2
+  fast_path_multiplier: 1.5
+  cooldown_windows: 10
+  revoke_persist_windows: 5
+  ewma_alpha: 0.05
+  warn_z: 2.5
+# Two phases on the compromised device, chosen so the run passes through every FSM state:
+#   Phase B (t=40-45):  score 1.3  -> WARN only (NORMAL -> SUSPECT -> back to NORMAL once it clears)
+#   Phase D (t=70-74):  score 2.3  -> ROTATE once, no escalation (NORMAL -> ROTATED -> NORMAL)
+#   Phase E (t=120-129): score 3.5 -> fast-path ROTATE, then persistence escalates to REVOKE (-> QUARANTINED)
+#   t=180: an explicit recover() call (simulating admin re-enrolment) -> RECOVERED -> NORMAL
+phases:
+  - {start: 40, end: 46, score: 1.3, label: 0}
+  - {start: 70, end: 75, score: 2.3, label: 1, category: "DemoAttack-Rotate", episode_id: 0}
+  - {start: 120, end: 130, score: 3.5, label: 1, category: "DemoAttack-Revoke", episode_id: 1}
+recover_at_t: 180

@@ -1,0 +1,18 @@
+# Core (Batch 1)
+numpy
+pandas
+pyarrow
+scikit-learn
+pyyaml
+joblib
+matplotlib
+seaborn
+tqdm
+pytest
+# Used in later batches
+cryptography
+streamlit
+plotly
+psutil
+# PyTorch (CPU build) is installed separately, see README:
+#   pip install torch --index-url https://download.pytorch.org/whl/cpu

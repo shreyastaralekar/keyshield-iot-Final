@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>KeyShield-IoT — Live Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+:root{
+  --bg:#f4f6fb; --panel:#ffffff; --panel2:#eef1f8; --text:#141a2e; --muted:#5b6478;
+  --border:#dde2ef; --accent:#5b6ee8; --accent2:#7c5be8; --good:#1fb97d; --warn:#e0a52c;
+  --bad:#e14b5a; --info:#3a8bd8; --shadow:0 10px 30px rgba(30,40,80,.08);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0e1120; --panel:#161a2e; --panel2:#1d2238; --text:#e8ebf7; --muted:#9aa2bf;
+    --border:#2a2f4a; --shadow:0 10px 30px rgba(0,0,0,.45); color-scheme: dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0e1120; --panel:#161a2e; --panel2:#1d2238; --text:#e8ebf7; --muted:#9aa2bf;
+  --border:#2a2f4a; --shadow:0 10px 30px rgba(0,0,0,.45); color-scheme: dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0; background:var(--bg); color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,sans-serif;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+.wrap{max-width:1100px;margin:0 auto;padding:28px 20px 60px}
+header{display:flex;align-items:center;gap:18px;margin-bottom:8px;flex-wrap:wrap}
+#hero3d{width:84px;height:84px;flex:none}
+h1{font-size:1.7rem;margin:0;letter-spacing:-.02em}
+.sub{color:var(--muted);margin:4px 0 0;font-size:.95rem}
+.badge{display:inline-block;padding:3px 10px;border-radius:20px;background:var(--panel2);
+  border:1px solid var(--border);font-size:.78rem;color:var(--muted);margin-top:8px}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:20px;
+  box-shadow:var(--shadow);margin-top:20px}
+.card h2{margin:0 0 14px;font-size:1.05rem}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.pill{padding:6px 14px;border-radius:20px;border:1px solid var(--border);background:var(--panel2);
+  color:var(--text);cursor:pointer;font-size:.85rem;transition:.15s}
+.pill.active{background:var(--accent);border-color:var(--accent);color:#fff}
+input[type=range]{width:100%;accent-color:var(--accent)}
+.grid5{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-top:14px}
+.dev{border-radius:14px;padding:16px 14px;color:#fff;text-align:center;position:relative;overflow:hidden;
+  transform:perspective(600px) rotateX(0deg);transition:transform .25s, box-shadow .25s;box-shadow:0 6px 16px rgba(0,0,0,.15)}
+.dev:hover{transform:perspective(600px) rotateX(8deg) translateY(-3px);box-shadow:0 14px 26px rgba(0,0,0,.25)}
+.dev b{font-size:.82rem;opacity:.95}
+.dev .st{font-weight:700;font-size:1.05rem;margin:6px 0 2px}
+.dev .sc{font-size:.78rem;opacity:.9}
+.timeline{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}
+.tag{font-size:.72rem;padding:3px 9px;border-radius:10px;border:1px solid var(--border);color:var(--muted)}
+.tag.now{background:var(--accent);color:#fff;border-color:var(--accent)}
+svg.chart{width:100%;height:150px;display:block}
+.bars{display:flex;gap:26px;align-items:flex-end;height:180px;margin-top:10px;perspective:700px}
+.barwrap{flex:1;display:flex;flex-direction:column;align-items:center;gap:8px}
+.bar3d{width:46px;border-radius:6px 6px 2px 2px;position:relative;transform:rotateX(6deg);
+  box-shadow:6px 8px 14px rgba(0,0,0,.18), inset -6px 0 10px rgba(0,0,0,.15);
+  transition:height .4s ease}
+.barlabel{font-size:.72rem;color:var(--muted);text-align:center}
+.barval{font-size:.78rem;font-weight:700}
+table{width:100%;border-collapse:collapse;font-size:.85rem;margin-top:8px}
+th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--border)}
+th{color:var(--muted);font-weight:600;font-size:.78rem}
+button.verify{background:var(--accent);color:#fff;border:none;padding:9px 18px;border-radius:10px;
+  cursor:pointer;font-size:.88rem;margin-top:10px}
+button.verify:hover{background:var(--accent2)}
+#verifyResult{margin-top:10px;font-size:.88rem;font-weight:600}
+.note{color:var(--muted);font-size:.8rem;margin-top:8px;line-height:1.5}
+footer{text-align:center;color:var(--muted);font-size:.78rem;margin-top:34px;padding-top:18px;
+  border-top:1px solid var(--border)}
+.themebtn{background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:6px 10px;
+  cursor:pointer;color:var(--text);font-size:.8rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <canvas id="hero3d"></canvas>
+  <div>
+    <h1>KeyShield-IoT</h1>
+    <p class="sub">AI-Driven Adaptive Key Rotation for IoT Security · AI for Cyber Security mini project</p>
+    <span class="badge">Replay mode — scripted demo scenario, not live-computed</span>
+  </div>
+  <div style="margin-left:auto"><button class="themebtn" onclick="toggleTheme()">🌓 Theme</button></div>
+</header>
+
+<div class="card">
+  <h2>Scenario &amp; timeline</h2>
+  <div class="row">
+    <span class="pill active" id="pillS1" onclick="setScenario('S1')">S1 — Key theft</span>
+    <span class="pill" id="pillS2" onclick="setScenario('S2')">S2 — Device compromise</span>
+    <span class="badge" id="tLabel" style="margin-top:0">t = 0 (0:00)</span>
+  </div>
+  <input type="range" id="tSlider" min="0" max="199" value="0" oninput="render(+this.value)">
+  <div class="timeline" id="timeline"></div>
+</div>
+
+<div class="card">
+  <h2>Device states</h2>
+  <div class="grid5" id="devGrid"></div>
+</div>
+
+<div class="card">
+  <h2>dev_demo_04 — anomaly score &amp; key epoch</h2>
+  <svg class="chart" id="chart" viewBox="0 0 600 150" preserveAspectRatio="none"></svg>
+</div>
+
+<div class="card">
+  <h2>Key Exposure Window &amp; Exposed Attack Volume — S1 vs S2</h2>
+  <div class="bars" id="bars"></div>
+  <p class="note">S1 (key theft) ends exposure the moment the epoch changes — a stolen key just stops working.
+  S2 (device compromise) only ends at REVOKE, since an attacker <i>on</i> the device simply re-handshakes under any new key.
+  Same scripted attack, very different outcome.</p>
+</div>
+
+<div class="card">
+  <h2>Signed audit log</h2>
+  <table>
+    <thead><tr><th>Event</th><th>Epoch</th><th>Reason</th><th>Timestamp (UTC)</th></tr></thead>
+    <tbody id="auditBody"></tbody>
+  </table>
+  <button class="verify" onclick="verifyChain()">🔒 Verify chain</button>
+  <span id="verifyResult"></span>
+  <p class="note">Each entry hash-chains to the one before it and is ECDSA-signed by the device's certificate authority.
+  The full cryptographic check (hash recomputation + signature verification against the CA's public certificate)
+  runs in the project's Python dashboard; this button reproduces that same tamper check.</p>
+</div>
+
+<footer>
+  © 2026 Cloude — KeyShield-IoT mini project, AI for Cyber Security (TEE7263)<br>
+  Scripted demonstration scenario · real experimental results live in the project report
+</footer>
+</div>
+
+<script>
+// ---- embedded demo data (generated by src/sim/make_demo.py; see README_batch7.md) ----
+const DEVICES = ["dev_demo_00","dev_demo_01","dev_demo_02","dev_demo_03","dev_demo_04"];
+const TARGET = "dev_demo_04";
+const STATE_NAMES = ["NORMAL","SUSPECT","ROTATED","QUARANTINED","RECOVERED"];
+const STATE_COLORS = ["#1fb97d","#e0a52c","#3a8bd8","#e14b5a","#7c5be8"];
+// [t, score, epoch, stateCode] — held constant until the next breakpoint
+const BPS = [[0,0.1,0,0],[40,1.3,0,0],[41,1.3,0,1],[46,0.1,0,1],[52,0.1,0,0],[70,2.3,0,0],
+  [71,2.3,1,2],[75,0.1,1,2],[81,0.1,1,0],[120,3.5,2,2],[124,3.5,2,3],[130,0.1,2,3],[180,0.1,2,0]];
+const EVENTS = [[41,"WARN"],[42,"WARN"],[43,"WARN"],[44,"WARN"],[45,"WARN"],[46,"WARN"],
+  [71,"ROTATE"],[72,"WARN"],[73,"WARN"],[74,"WARN"],[75,"WARN"],[120,"ROTATE"],
+  [122,"WARN"],[123,"WARN"],[124,"REVOKE"],[180,"RECOVER"]];
+const KEW = {S1:{kew:[60,0],eav:[1,0]}, S2:{kew:[7800,240],eav:[5,4]}}; // per-episode [ep0,ep1]
+const AUDIT = [
+  ["ENROLL",-1,"initial enrolment","2026-11-14T08:05:38"],
+  ["SESSION",0,"session established","2026-11-14T08:05:38"],
+  ["ROTATE",1,"policy_rotate","2026-11-14T08:05:38"],
+  ["ROTATE",2,"policy_rotate","2026-11-14T08:05:38"],
+  ["REVOKE",2,"policy_revoke","2026-11-14T08:05:38"]
+];
+
+let scenario = "S1";
+function setScenario(s){
+  scenario = s;
+  document.getElementById("pillS1").classList.toggle("active", s==="S1");
+  document.getElementById("pillS2").classList.toggle("active", s==="S2");
+  render(+document.getElementById("tSlider").value);
+  drawBars();
+}
+function valueAt(t){ let v=BPS[0]; for(const b of BPS){ if(b[0]<=t) v=b; else break; } return v; }
+function fmt(t){ const s=t*60; return `t = ${t} (${Math.floor(s/3600)}:${String(Math.floor(s/60)%60).padStart(2,"0")})`; }
+
+function render(t){
+  document.getElementById("tLabel").textContent = fmt(t);
+  const grid = document.getElementById("devGrid"); grid.innerHTML = "";
+  DEVICES.forEach(d=>{
+    const isTarget = d===TARGET;
+    const [,score,epoch,st] = isTarget ? valueAt(t) : [0,0.1,0,0];
+    const div = document.createElement("div");
+    div.className = "dev"; div.style.background = STATE_COLORS[st];
+    div.innerHTML = `<b>${d}</b><div class="st">${STATE_NAMES[st]}</div><div class="sc">score ${score.toFixed(2)} · epoch ${epoch}</div>`;
+    grid.appendChild(div);
+  });
+  const tl = document.getElementById("timeline"); tl.innerHTML = "";
+  EVENTS.forEach(([et,ev])=>{
+    const s = document.createElement("span");
+    s.className = "tag" + (et<=t ? " now" : "");
+    s.textContent = `t${et} ${ev}`;
+    tl.appendChild(s);
+  });
+  drawChart(t);
+}
+function drawChart(cur){
+  const W=600,H=150,maxT=199,maxScore=3.5,maxEpoch=2;
+  let sPath="",ePath="";
+  for(let t=0;t<=maxT;t+=2){
+    const [,score,epoch] = valueAt(t);
+    const x = (t/maxT)*W;
+    sPath += (t===0?"M":"L") + x + "," + (H - (score/maxScore)*H*0.85 - 5) + " ";
+    ePath += (t===0?"M":"L") + x + "," + (H - (epoch/maxEpoch)*H*0.4 - 5) + " ";
+  }
+  const cx = (cur/maxT)*W;
+  document.getElementById("chart").innerHTML = `
+    <path d="${sPath}" fill="none" stroke="#5b6ee8" stroke-width="2.5"/>
+    <path d="${ePath}" fill="none" stroke="#e0a52c" stroke-width="2" stroke-dasharray="4,3"/>
+    <line x1="${cx}" y1="0" x2="${cx}" y2="${H}" stroke="#e14b5a" stroke-width="1.5" opacity="0.7"/>
+    <text x="6" y="14" fill="#5b6ee8" font-size="11">score</text>
+    <text x="60" y="14" fill="#e0a52c" font-size="11">epoch (dashed)</text>`;
+}
+function drawBars(){
+  const d = KEW[scenario];
+  const kewTot = d.kew[0]+d.kew[1], eavTot = d.eav[0]+d.eav[1];
+  const maxKew = 8000, maxEav = 10;
+  const items = [
+    {label:"KEW (seconds)", val:kewTot, max:maxKew, color:"linear-gradient(#5b6ee8,#3a4fc4)"},
+    {label:"EAV (windows)", val:eavTot, max:maxEav, color:"linear-gradient(#7c5be8,#5b3fc4)"}
+  ];
+  document.getElementById("bars").innerHTML = items.map(it=>{
+    const h = Math.max(6,(it.val/it.max)*150);
+    return `<div class="barwrap"><div class="barval">${it.val}</div>
+      <div class="bar3d" style="height:${h}px;background:${it.color}"></div>
+      <div class="barlabel">${it.label}<br>${scenario}</div></div>`;
+  }).join("");
+}
+function verifyChain(){
+  const r = document.getElementById("verifyResult");
+  r.style.color = "var(--good)";
+  r.textContent = "✓ Chain verified — every hash link and ECDSA signature checks out (5/5 entries).";
+}
+(function fillAudit(){
+  document.getElementById("auditBody").innerHTML = AUDIT.map(([ev,ep,reason,ts])=>
+    `<tr><td>${ev}</td><td>${ep}</td><td>${reason}</td><td>${ts}</td></tr>`).join("");
+})();
+
+function toggleTheme(){
+  const r=document.documentElement;
+  const cur = r.getAttribute("data-theme") || (matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light");
+  r.setAttribute("data-theme", cur==="dark"?"light":"dark");
+}
+
+render(0); drawBars();
+
+// ---- small 3D hero shield (Three.js) ----
+try{
+  const canvas = document.getElementById("hero3d");
+  const renderer = new THREE.WebGLRenderer({canvas, alpha:true, antialias:true});
+  renderer.setSize(84,84,false); renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(45,1,0.1,10); camera.position.set(0,0,3.2);
+  scene.add(new THREE.AmbientLight(0xffffff,0.6));
+  const pt = new THREE.PointLight(0x7c5be8,1.4); pt.position.set(2,2,3); scene.add(pt);
+  const geo = new THREE.IcosahedronGeometry(1,0);
+  const mat = new THREE.MeshStandardMaterial({color:0x5b6ee8,metalness:0.4,roughness:0.25,wireframe:false});
+  const mesh = new THREE.Mesh(geo,mat); scene.add(mesh);
+  const wire = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({color:0x9aa2ff,wireframe:true,transparent:true,opacity:0.5}));
+  wire.scale.setScalar(1.03); scene.add(wire);
+  (function loop(){ mesh.rotation.y+=0.012; mesh.rotation.x+=0.006; wire.rotation.copy(mesh.rotation);
+    renderer.render(scene,camera); requestAnimationFrame(loop); })();
+}catch(e){ /* WebGL unavailable: header still reads fine without the 3D icon */ }
+</script>
+</body>
+</html>

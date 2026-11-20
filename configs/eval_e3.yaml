@@ -1,0 +1,8 @@
+# Batch 6 (E3): KEW / EAV / cost evaluation settings
+cost:
+  default_handshake_ms: 0.30     # fallback only if report/tables/crypto_benchmark.csv is missing
+  revoke_also_handshakes: true   # revoke() also performs one ECDH handshake internally (establish_session-style cost)
+
+output:
+  tables_dir: report/tables
+  figures_dir: report/figures

@@ -1,0 +1,23 @@
+# Batch 4: decision engine (policies + mitigation state machine)
+live_model: iforest           # which Batch 2 detector score column (score_<live_model>) drives the AI policy
+
+calibration:
+  seed_index: 0                # calibrate on val_s<seeds[seed_index]> only; test data is never used
+  quantiles: {warn: 0.95, rotate: 0.99, revoke: 0.999}
+  min_revoke_margin: 1.05      # enforce revoke_level >= rotate_level * this (widens if the data is too sparse)
+
+policies:
+  ai:
+    hysteresis_n: 3            # look at the last n windows
+    hysteresis_k: 2            # ... act only if at least k of them crossed the level
+    fast_path_multiplier: 1.5  # score >= rotate_level * this -> immediate ROTATE, bypassing hysteresis
+    cooldown_windows: 10       # minimum windows between two ROTATE actions
+    revoke_persist_windows: 5  # consecutive at/above rotate_level AFTER a rotation -> REVOKE
+    ewma_alpha: 0.05           # per-device baseline (gated: only updated on below-rotate_level windows)
+    warn_z: 2.5                # local z-score alternative trigger for WARN
+  fixed_interval:
+    T_values: [60, 180, 360, 720]     # windows; seconds_per_window=60s -> 1, 3, 6, 12 simulated hours
+  static_rule:
+    use_hysteresis: false      # fixed, non-adaptive thresholds, no hysteresis -> the "conventional" baseline
+  hybrid:
+    max_lifetime_windows: 720  # forces a ROTATE if the AI policy hasn't rotated a device by this age

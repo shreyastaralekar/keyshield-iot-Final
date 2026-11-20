@@ -1,0 +1,15 @@
+Policy,Scenario,Mean KEW (s),Mean EAV (windows),Detection rate,Episodes (all seeds)
+AI (adaptive),S1,57 ± 51,0.95 ± 0.84,1.000,20
+AI (adaptive),S2,342 ± 85,5.70 ± 1.41,1.000,20
+Hybrid (AI + lifetime cap),S1,57 ± 51,0.95 ± 0.84,1.000,20
+Hybrid (AI + lifetime cap),S2,342 ± 85,5.70 ± 1.41,1.000,20
+Static rule,S1,17337 ± 9920,0.00 ± 0.00,0.400,20
+Static rule,S2,17337 ± 9920,0.00 ± 0.00,0.400,20
+Fixed interval (T=60w),S1,1797 ± 341,28.90 ± 5.46,1.000,20
+Fixed interval (T=60w),S2,31377 ± 1436,75.45 ± 14.58,0.000,20
+Fixed interval (T=180w),S1,5397 ± 1272,56.85 ± 12.82,1.000,20
+Fixed interval (T=180w),S2,31377 ± 1436,75.45 ± 14.58,0.000,20
+Fixed interval (T=360w),S1,11697 ± 3161,61.80 ± 8.99,0.850,20
+Fixed interval (T=360w),S2,31377 ± 1436,75.45 ± 14.58,0.000,20
+Fixed interval (T=720w),S1,17097 ± 2797,71.45 ± 12.97,0.850,20
+Fixed interval (T=720w),S2,31377 ± 1436,75.45 ± 14.58,0.000,20

@@ -1,0 +1,37 @@
+# KeyShield-IoT main configuration (Batch 1: data pipeline)
+seed: 42
+seeds: [42, 43, 44, 45, 46]       # val/test streams are rebuilt for each seed (used in experiment E6)
+
+paths:
+  raw: data/raw                    # put the MERGED_CSV files here
+  processed: data/processed
+  figures: report/figures
+
+data:
+  chunksize: 500000
+  drop_duplicates: true            # exact duplicates inside each file (set false if benign rows become too few)
+  max_rows_per_label: 60000        # cap per ATTACK label; benign rows are always kept in full
+
+split:
+  ratios: [0.6, 0.2, 0.2]          # train / val / test; used for flow rows (per label) AND for devices
+
+features:
+  top_k: 25
+  corr_threshold: 0.95
+  importance_sample: 300000
+
+streams:
+  n_devices: 20                    # 12 train / 4 val / 4 test with the default ratios
+  windows_per_device: 1000         # 1 window = 60 simulated seconds -> about 16.7 simulated hours
+  flows_per_window: 10
+  seconds_per_window: 60
+  window_stats: [mean, std, max]
+  attack_categories: [DDoS, DoS, Mirai, Recon, Spoofing]   # categories used to build attack episodes
+  min_pool_rows: 300               # an attack label needs this many rows in a split to be used
+  episode_len_windows: [30, 120]
+  min_start_window: 200            # benign history before any compromise
+  end_margin_windows: 50           # benign windows after an episode
+  compromised_fraction:
+    train: 0.5
+    val: 1.0
+    test: 1.0
