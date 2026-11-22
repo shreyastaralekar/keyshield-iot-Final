@@ -1,4 +1,4 @@
-"""Interactive KeyShield-IoT replay dashboard."""
+"""Simple interactive KeyShield-IoT replay dashboard."""
 from __future__ import annotations
 
 import json
@@ -19,7 +19,11 @@ STATE_COLORS = {"NORMAL": "#1fb97d", "SUSPECT": "#e0a52c", "ROTATED": "#3a8bd8",
                "QUARANTINED": "#e14b5a", "RECOVERED": "#7c5be8"}
 SCENARIO_LABEL = {"S1": "S1 — key theft", "S2": "S2 — device compromise"}
 
-st.set_page_config(page_title="KeyShield-IoT Dashboard", layout="wide", page_icon="🛡️")
+st.set_page_config(
+    page_title="KeyShield-IoT Dashboard",
+    layout="wide",
+    page_icon=":material/shield:",
+)
 
 
 @st.cache_data
@@ -48,7 +52,7 @@ def ensure_demo() -> bool:
 
 
 st.title("KeyShield-IoT", icon=":material/shield:")
-st.caption("AI-driven adaptive key rotation and certificate response for IoT devices")
+st.caption("See how the system detects an attack and protects IoT devices.")
 ensure_demo()
 
 demo_path, real_path = PROC / "demo_events.parquet", PROC / "events.parquet"
@@ -63,17 +67,18 @@ if not sources:
     st.stop()
 
 with st.sidebar:
-    st.header("Experiment controls")
+    st.header("Choose a demo")
     source_name = st.radio("Data source", list(sources), key="data_source")
     events = load_events(sources[source_name])
-    if source_name == "Scripted demo scenario":
-        st.caption("Hand-scripted, deterministic demonstration.")
-    else:
-        st.caption("Results from a completed experiment run.")
 
     policies = sorted(events["policy"].unique())
     default_idx = policies.index("ai_demo") if "ai_demo" in policies else (policies.index("ai") if "ai" in policies else 0)
-    policy = st.selectbox("Policy", policies, index=default_idx, key="policy")
+    if source_name == "Scripted demo scenario":
+        policy = "ai_demo"
+        st.caption("A simple, repeatable demonstration.")
+    else:
+        policy = st.selectbox("Protection method", policies, index=default_idx, key="policy")
+        st.caption("Choose how the system decides to protect devices.")
 
     by_policy = events[events.policy == policy]
     scenario = st.radio("Attacker scenario", sorted(by_policy["scenario"].unique()),
@@ -85,144 +90,105 @@ with st.sidebar:
 
     devices = sorted(sub["device_id"].unique())
     t_max = int(sub["t"].max())
-    t = st.slider("Window", 0, t_max, min(t_max, 90), key="window")
-    st.caption(f"{len(devices)} device(s) · {t_max + 1} windows · 1 window = 60s")
+    t = st.slider("Replay time", 0, t_max, min(t_max, 90), key="window")
+    st.caption(f"1 step = 60 seconds · {t_max + 1} total steps")
 
-overview, timeline, audit = st.tabs(
-    ["Overview", "Device timeline", "Audit trail"],
-    on_change="rerun",
+n_episodes = sub.loc[sub.episode_id >= 0, "device_id"].nunique()
+n_events = int((sub.event != "WINDOW").sum())
+
+with st.container(horizontal=True):
+    st.metric("Monitored devices", len(devices), border=True)
+    st.metric("Devices under attack", n_episodes, border=True)
+    st.metric("Security actions", n_events, border=True)
+
+scenario_text = (
+    "A stolen key stops working when the key changes."
+    if scenario == "S1"
+    else "An attacker on a device can reconnect, so the device must be revoked."
 )
+st.info(scenario_text, title="What happens in this scenario")
 
-with overview:
-    n_episodes = sub.loc[sub.episode_id >= 0, "device_id"].nunique()
-    n_events = int((sub.event != "WINDOW").sum())
-    with st.container(horizontal=True):
-        st.metric("Devices", len(devices), border=True)
-        st.metric("Compromise episodes", n_episodes, border=True)
-        st.metric("Security events", n_events, border=True)
-        st.metric("Current window", t, delta=f"{t * 60}s elapsed", border=True)
-
-    st.subheader(f"Device status at window {t}", icon=":material/monitor_heart:")
-    now = sub[sub.t == t].set_index("device_id")
-    state_cards = []
-    for dev in devices:
+st.subheader(f"Device status at step {t}")
+now = sub[sub.t == t].set_index("device_id")
+card_count = min(len(devices), 5)
+for start in range(0, len(devices), card_count):
+    cols = st.columns(card_count)
+    for col, dev in zip(cols, devices[start:start + card_count]):
         if dev in now.index:
             state = str(now.loc[dev, "fsm_state"])
             score = float(now.loc[dev, "score"])
             epoch = int(now.loc[dev, "epoch"])
         else:
             state, score, epoch = "UNKNOWN", float("nan"), 0
-        state_cards.append((dev, state, score, epoch))
+        with col:
+            with st.container(border=True, height="stretch"):
+                st.markdown(f"**{dev}**")
+                st.badge(state, color={
+                    "NORMAL": "green",
+                    "SUSPECT": "orange",
+                    "ROTATED": "blue",
+                    "QUARANTINED": "red",
+                    "RECOVERED": "violet",
+                }.get(state, "gray"))
+                st.caption(f"Risk score: {score:.2f}")
+                st.caption(f"Key number: {epoch}")
 
-    card_count = min(len(state_cards), 5)
-    for start in range(0, len(state_cards), card_count):
-        cols = st.columns(card_count)
-        for col, (dev, state, score, epoch) in zip(cols, state_cards[start:start + card_count]):
-            with col:
-                with st.container(border=True, height="stretch"):
-                    st.markdown(f"**{dev}**")
-                    st.badge(state, color={
-                        "NORMAL": "green",
-                        "SUSPECT": "orange",
-                        "ROTATED": "blue",
-                        "QUARANTINED": "red",
-                        "RECOVERED": "violet",
-                    }.get(state, "gray"))
-                    st.caption(f"Score {score:.2f} · Epoch {epoch}")
+attacked_devices = sorted(sub.loc[sub.label == 1, "device_id"].unique())
+device_sel = attacked_devices[0] if attacked_devices else devices[0]
+dsub = sub[sub.device_id == device_sel].sort_values("t")
 
-    st.caption("S1 ends exposure on rotation or revocation. S2 ends exposure only on revocation.")
+st.subheader("What happened to the attacked device")
+left, right = st.columns(2)
+with left:
+    st.markdown("**Risk over time**")
+    st.line_chart(
+        dsub.set_index("t")[["score"]],
+        alt=f"Risk score over time for {device_sel}",
+        height=250,
+    )
+with right:
+    st.markdown("**Key changes over time**")
+    st.line_chart(
+        dsub.set_index("t")[["epoch"]],
+        alt=f"Key epoch over time for {device_sel}",
+        height=250,
+        color="#D97706",
+    )
 
-if timeline.open:
-    with timeline:
-        attacked_devices = sorted(sub.loc[sub.label == 1, "device_id"].unique())
-        default_dev = attacked_devices[0] if attacked_devices else devices[0]
-        device_sel = st.selectbox(
-            "Device",
-            devices,
-            index=devices.index(default_dev),
-            key="device_inspector",
+with st.expander("View security actions"):
+    key_events = dsub[dsub.event != "WINDOW"]
+    if len(key_events):
+        st.dataframe(
+            key_events[["t", "event", "fsm_state", "epoch"]],
+            hide_index=True,
+            alt=f"Security actions for {device_sel}",
         )
-        dsub = sub[sub.device_id == device_sel].sort_values("t")
+    else:
+        st.caption("No security actions have occurred for this device.")
 
-        left, right = st.columns(2)
-        with left:
-            st.subheader("Anomaly score", icon=":material/analytics:")
-            st.line_chart(
-                dsub.set_index("t")[["score"]],
-                alt=f"Anomaly score over time for {device_sel}",
-                height=280,
-            )
-        with right:
-            st.subheader("Key epoch", icon=":material/vpn_key:")
-            st.line_chart(
-                dsub.set_index("t")[["epoch"]],
-                alt=f"Key epoch over time for {device_sel}",
-                height=280,
-                color="#D97706",
-            )
-
-        key_events = dsub[dsub.event != "WINDOW"]
-        st.subheader("Security events")
-        if len(key_events):
+with st.expander("View audit log"):
+    audit_path = PROC / "demo_audit_log.jsonl"
+    cert_path = PROC / "demo_ca_cert.pem"
+    if audit_path.exists() and cert_path.exists():
+        entries = [
+            json.loads(line)
+            for line in audit_path.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        st.caption(f"{len(entries)} signed and hash-linked audit records")
+        if entries:
             st.dataframe(
-                key_events[["t", "event", "fsm_state", "epoch", "label"]],
+                pd.DataFrame(entries)[["device_id", "event", "epoch", "reason", "ts"]],
                 hide_index=True,
-                alt=f"Security event table for {device_sel}",
+                alt="Signed audit log",
             )
-        else:
-            st.caption("No security events are recorded for this device in the selected run.")
-
-        st.subheader("Key exposure window")
-        windows_per_device = int(sub["t"].max()) + 1
-        ep = episodes_kew_eav(by_policy, windows_per_device=windows_per_device, seconds_per_window=60)
-        ep_d = ep[ep.device_id == device_sel]
-        if len(ep_d):
-            ep_d = ep_d.copy()
-            ep_d["scenario"] = ep_d["scenario"].map(SCENARIO_LABEL).fillna(ep_d["scenario"])
-            chart_col, table_col = st.columns([1, 2])
-            with chart_col:
-                st.bar_chart(
-                    ep_d.set_index("scenario")[["kew_seconds"]],
-                    alt="Key exposure window by attacker scenario",
-                    height=280,
-                )
-            with table_col:
-                show = ep_d[
-                    ["scenario", "onset_t", "detection_t", "censored",
-                     "kew_seconds", "eav_windows", "category"]
-                ]
-                st.dataframe(show, hide_index=True, alt="Key exposure metrics by scenario")
-        else:
-            st.info("The selected device has no compromise episode in this run.")
-
-if audit.open:
-    with audit:
-        st.subheader("Signed audit log", icon=":material/verified:")
-        audit_path = PROC / "demo_audit_log.jsonl"
-        cert_path = PROC / "demo_ca_cert.pem"
-        if audit_path.exists() and cert_path.exists():
-            entries = [
-                json.loads(line)
-                for line in audit_path.read_text(encoding="utf-8").splitlines()
-                if line.strip()
-            ]
-            st.caption(
-                f"{len(entries)} hash-chained, ECDSA-signed entries"
-                + (f" for {entries[0]['device_id']}" if entries else "")
-            )
-            if entries:
-                st.dataframe(
-                    pd.DataFrame(entries)[["device_id", "event", "epoch", "reason", "ts"]],
-                    hide_index=True,
-                    alt="Persisted hash-chained signed audit entries",
-                )
-            if st.button("Verify chain", icon=":material/check_circle:", type="primary", key="verify_audit"):
-                ok, bad = verify_audit(entries, cert_path.read_bytes())
-                if ok:
-                    st.success("Chain verified: every hash link and ECDSA signature is valid.")
-                else:
-                    st.error(f"Chain verification failed at entry {bad}.")
-        else:
-            st.info("Run `python -m src.sim.make_demo` to generate the audit demonstration.")
+        if st.button("Verify audit log", icon=":material/check_circle:", type="primary", key="verify_audit"):
+            ok, bad = verify_audit(entries, cert_path.read_bytes())
+            if ok:
+                st.success("Verified: every record and signature is valid.")
+            else:
+                st.error(f"Verification failed at record {bad}.")
+    else:
+        st.info("Run `python -m src.sim.make_demo` to generate the audit demonstration.")
 
 st.caption("KeyShield-IoT · AI for Cyber Security (TEE7263) · Mini project")

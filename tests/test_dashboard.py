@@ -8,4 +8,6 @@ def test_dashboard_starts_and_generates_demo():
     at = AppTest.from_file(app_path).run(timeout=20)
     assert not at.exception
     assert at.title
-    assert at.tabs
+    assert at.metric
+    assert at.info
+    assert at.expander
